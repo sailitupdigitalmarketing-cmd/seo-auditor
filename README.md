@@ -9,6 +9,7 @@ Enter any website URL and it is audited automatically every day. Each audit give
 - **Content:** missing/multiple H1, skipped heading levels, thin content, images without alt, missing `lang`, unfriendly URLs
 - **Links:** broken internal and external links, pages returning 4xx/5xx, redirect chains
 - **Mobile & social:** viewport tag, Open Graph tags
+- **JavaScript sites:** sites built as JavaScript apps (React, Vue, Lovable, Wix-style builders) are rendered in headless Chromium so the audit sees what Google sees, and flags content that only appears after JavaScript runs
 - **Structured data:** JSON-LD missing on the homepage or invalid
 - **Performance (server side):** slow responses, very large HTML
 
@@ -51,6 +52,7 @@ Static mode locally: `python -m seo_auditor.static_report add https://example.co
 | `AUDIT_HOUR_UTC` | `6` | Hour (UTC) the daily audit of all sites runs |
 | `SEO_DB_PATH` | `data/seo.db` | SQLite database file |
 | `WEBHOOK_URL` | – | Slack/Discord-style webhook; receives the score, new/resolved issues and top action items after every audit |
+| `RENDER_JS` | `auto` | `auto` renders pages in headless Chromium when the raw HTML looks like an empty JS app; `always` or `never` to force |
 | `ALLOW_PRIVATE_URLS` | `0` | Set to `1` to allow auditing localhost/private IPs (blocked by default for safety) |
 
 ## API

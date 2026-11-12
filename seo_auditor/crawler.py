@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import urllib.robotparser
 from dataclasses import dataclass, field
@@ -44,6 +45,8 @@ class Page:
     jsonld: list = field(default_factory=list)  # parsed @type values
     jsonld_errors: int = 0
     mixed_content: list = field(default_factory=list)
+    rendered: bool = False          # parsed from the JavaScript-rendered DOM
+    raw_word_count: int = -1        # words in the raw HTML before JavaScript (if rendered)
 
     @property
     def is_html(self) -> bool:
@@ -68,6 +71,7 @@ class CrawlResult:
     sitemaps: list  # list of dicts {url, status, urls:[...], error}
     https: bool
     duration_s: float
+    js_rendered: bool = False
 
 
 def normalize(url: str) -> str:
@@ -150,7 +154,8 @@ def parse_html(page: Page, html: str) -> None:
 
 class Crawler:
     def __init__(self, start_url: str, max_pages: int = 100, concurrency: int = 8,
-                 timeout: float = 15.0, check_external: bool = True, max_external: int = 200):
+                 timeout: float = 15.0, check_external: bool = True, max_external: int = 200,
+                 render: str | None = None):
         if not urlparse(start_url).scheme:
             start_url = "https://" + start_url
         self.start_url = normalize(start_url)
@@ -160,6 +165,63 @@ class Crawler:
         self.check_external = check_external
         self.max_external = max_external
         self.robots = urllib.robotparser.RobotFileParser()
+        # JavaScript rendering: "auto" (render if the raw HTML looks like an empty JS app), "always", "never"
+        self.render = (render or os.environ.get("RENDER_JS", "auto")).lower()
+        self._pw = None
+        self._browser = None
+        self._render_sem = asyncio.Semaphore(int(os.environ.get("RENDER_CONCURRENCY", "3")))
+
+    async def _start_browser(self) -> bool:
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            return False
+        try:
+            self._pw = await async_playwright().start()
+            self._browser = await self._pw.chromium.launch(
+                executable_path=os.environ.get("CHROMIUM_PATH") or None, args=["--no-sandbox"])
+            return True
+        except Exception as e:
+            print(f"Could not start headless browser, auditing raw HTML only: {e}")
+            await self._stop_browser()
+            return False
+
+    async def _stop_browser(self):
+        try:
+            if self._browser:
+                await self._browser.close()
+            if self._pw:
+                await self._pw.stop()
+        except Exception:
+            pass
+        self._browser = self._pw = None
+
+    async def _render(self, page: Page) -> Page:
+        """Re-parse a page from its JavaScript-rendered DOM, as Google's renderer would see it."""
+        async with self._render_sem:
+            ctx = await self._browser.new_context(user_agent=USER_AGENT)
+            try:
+                bp = await ctx.new_page()
+                await bp.route("**/*", lambda r: r.abort() if r.request.resource_type in ("image", "media", "font")
+                               else r.continue_())
+                try:
+                    await bp.goto(page.final_url or page.url, wait_until="networkidle", timeout=self.timeout * 2000)
+                except Exception:
+                    pass  # use whatever rendered before the timeout
+                html = await bp.content()
+            except Exception:
+                return page
+            finally:
+                await ctx.close()
+        new = Page(url=page.url, status=page.status, final_url=page.final_url, redirects=page.redirects,
+                   elapsed_ms=page.elapsed_ms, size_bytes=page.size_bytes, content_type=page.content_type,
+                   depth=page.depth)
+        parse_html(new, html)
+        if page.robots_meta and page.robots_meta not in new.robots_meta:
+            new.robots_meta = (new.robots_meta + "," + page.robots_meta).strip(",")
+        new.rendered = True
+        new.raw_word_count = page.word_count
+        return new
 
     async def _fetch(self, client: httpx.AsyncClient, url: str, depth: int) -> tuple[Page, str]:
         page = Page(url=url, depth=depth)
@@ -178,6 +240,8 @@ class Crawler:
                 parse_html(page, html)
             if xrobots:
                 page.robots_meta = (page.robots_meta + "," + xrobots).strip(",")
+            if html and self._browser and page.status == 200:
+                page = await self._render(page)
             return page, html
         except Exception as e:  # network errors
             page.elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -244,6 +308,10 @@ class Crawler:
                                      headers={"User-Agent": USER_AGENT}) as client:
             # Resolve the start URL first (handles http->https and www redirects)
             first, html = await self._fetch(client, self.start_url, 0)
+            looks_js_app = first.is_html and first.status == 200 and (first.word_count < 50 or not first.internal_links)
+            if self.render == "always" or (self.render == "auto" and looks_js_app):
+                if await self._start_browser():
+                    first, html = await self._fetch(client, self.start_url, 0)
             base = first.final_url or self.start_url
             p = urlparse(base)
             origin = f"{p.scheme}://{p.netloc}"
@@ -318,11 +386,13 @@ class Crawler:
             for lr in await asyncio.gather(*(lworker(u) for u in to_check)):
                 lr.found_on = found_on[lr.url]
                 links[lr.url] = lr
+            js_rendered = self._browser is not None
+            await self._stop_browser()
 
         return CrawlResult(
             start_url=base, pages=list(pages.values()), links=links, robots_txt=robots_txt,
             robots_status=robots_status, sitemaps=sitemaps, https=base.startswith("https://"),
-            duration_s=round(time.perf_counter() - t0, 1),
+            duration_s=round(time.perf_counter() - t0, 1), js_rendered=js_rendered,
         )
 
 

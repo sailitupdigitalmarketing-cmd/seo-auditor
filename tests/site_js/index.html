@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>JS App Home – A single page application test site</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body><div id="root"></div>
+<script>
+const words = Array(300).fill("content").join(" ");
+const path = location.pathname;
+document.getElementById("root").innerHTML = path.includes("about")
+  ? `<h1>About page</h1><p>${words}</p><a href="/">Home</a>`
+  : `<h1>Welcome</h1><p>${words}</p><a href="/about">About</a> <a href="/broken-js-link">Broken</a>`;
+</script></body></html>

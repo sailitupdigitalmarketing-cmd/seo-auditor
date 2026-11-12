@@ -85,6 +85,22 @@ def run_checks(cr: CrawlResult) -> list[Issue]:
               detail=(cr.sitemaps[0].get("error") or f"HTTP {cr.sitemaps[0]['status']}") if cr.sitemaps else None)
     else:
         sm_urls = {u for sm in valid_sitemaps for u in sm["urls"]}
+        site_host = urlparse(cr.start_url).netloc.lower().removeprefix("www.")
+        foreign = [u for u in sm_urls if urlparse(u).netloc.lower().removeprefix("www.") != site_host]
+        if foreign and len(foreign) == len(sm_urls):
+            s.add("sitemap-wrong-domain", "Technical", "high", "Sitemap lists URLs from a different domain",
+                  "Search engines ignore sitemap URLs that aren't on the site's own domain, so none of your pages are submitted.",
+                  f"Regenerate the sitemap so every <loc> uses this site's domain ({site_host}).",
+                  page=valid_sitemaps[0]["url"], detail=f"{len(foreign)} URLs, e.g. {sorted(foreign)[0]}")
+        elif foreign:
+            for u in sorted(foreign)[:50]:
+                s.add("sitemap-wrong-domain", "Technical", "medium", "Sitemap lists URLs from a different domain",
+                      "Search engines ignore sitemap URLs that aren't on the site's own domain.",
+                      f"Remove or fix these entries so they use {site_host}.", page=u)
+        if not sm_urls:
+            s.add("sitemap-empty", "Technical", "high", "Sitemap contains no URLs",
+                  "An empty sitemap gives search engines nothing to discover.",
+                  "Make sure your sitemap generator lists every public page.", page=valid_sitemaps[0]["url"])
         status_by_url = {}
         for p in cr.pages:
             status_by_url[p.url] = p
@@ -136,6 +152,13 @@ def run_checks(cr: CrawlResult) -> list[Issue]:
                   "These pages are excluded from search results. Fine for private/thank-you pages, harmful otherwise.",
                   "Remove the 'noindex' robots meta tag / X-Robots-Tag header from pages that should rank.", page=url)
 
+        if p.rendered and p.raw_word_count < 50 and p.word_count >= 50:
+            s.add("js-only-content", "Indexability", "medium", "Content only appears after JavaScript runs",
+                  "Google can render JavaScript but does it later and less reliably; Bing, AI search tools and social "
+                  "previews (WhatsApp, LinkedIn, Facebook) often see an empty page.",
+                  "Serve pre-rendered HTML: enable server-side rendering or static pre-rendering in your framework/site "
+                  "builder, or use a pre-rendering service, so the raw HTML already contains the text, headings and links.",
+                  page=url, detail=f"{p.raw_word_count} words without JavaScript vs {p.word_count} with it")
         # Title
         if not p.title:
             s.add("title-missing", "Meta tags", "critical", "Missing <title> tag",
