@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.templating import Jinja2Templates
 
 from . import db, jobs
+from .app_utils import sparkline
 from .checks import SEVERITY_ORDER
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -28,16 +29,6 @@ async def lifespan(app):
 
 
 app = FastAPI(title="SEO Auditor", lifespan=lifespan)
-
-
-def sparkline(points: list[int], w=320, h=60) -> str:
-    if len(points) < 2:
-        return ""
-    step = w / (len(points) - 1)
-    lo, hi = max(0, min(points) - 5), min(100, max(points) + 5)
-    rng = max(hi - lo, 1)
-    coords = " ".join(f"{i*step:.1f},{h - ((p - lo) / rng) * h:.1f}" for i, p in enumerate(points))
-    return coords
 
 
 @app.get("/", response_class=HTMLResponse)

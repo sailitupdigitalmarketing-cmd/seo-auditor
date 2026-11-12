@@ -1,0 +1,2 @@
+# One website per line. Every site here is audited daily by GitHub Actions.
+# Lines starting with # are ignored.

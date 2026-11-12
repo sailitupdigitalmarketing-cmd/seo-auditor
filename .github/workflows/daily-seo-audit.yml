@@ -1,0 +1,72 @@
+name: Daily SEO audit
+
+on:
+  schedule:
+    - cron: "0 6 * * *"        # every day at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Website to add and audit now (optional, e.g. https://www.example.com)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths: [sites.txt]         # editing sites.txt on GitHub triggers an audit right away
+
+permissions:
+  contents: write              # commit audit history back to the repo
+  pages: write                 # publish the report to GitHub Pages
+  id-token: write
+
+concurrency:
+  group: seo-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Add site from manual run
+        if: github.event_name == 'workflow_dispatch' && inputs.url != ''
+        env:
+          NEW_URL: ${{ inputs.url }}
+        run: python -m seo_auditor.static_report add "$NEW_URL"
+
+      - name: Run audits and build report
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          MAX_PAGES: ${{ vars.MAX_PAGES || '100' }}
+        run: python -m seo_auditor.static_report run
+
+      - name: Save audit history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sites.txt reports/
+          git diff --cached --quiet || git commit -m "SEO audit $(date -u +%F)"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: audit
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

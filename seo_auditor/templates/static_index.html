@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block body %}
+<div class="card">
+  <h1>SEO audits</h1>
+  <p class="muted">Every site below is audited automatically every day at {{ "%02d"|format(hour) }}:00 UTC by GitHub Actions. Last updated {{ generated[:16]|replace("T"," ") }} UTC.</p>
+  <p class="muted">To add a website, add its URL to <code>sites.txt</code> in the repository, or run the <b>Daily SEO audit</b> workflow from the Actions tab and enter the URL.</p>
+</div>
+<div class="card">
+  <h2>Monitored sites</h2>
+  {% if not sites %}<p class="muted">No sites yet.</p>{% else %}
+  <table><tr><th>Site</th><th>Score</th><th>Change</th><th>Critical / High</th><th>Last audit</th></tr>
+  {% for s in sites %}<tr>
+    <td><a href="{{ s.slug }}.html">{{ s.url }}</a></td>
+    <td><b class="{{ 'good' if (s.score or 0) >= 80 else ('bad' if s.score is not none and s.score < 50 else '') }}">{{ s.score if s.score is not none else "–" }}</b></td>
+    <td>{% if s.delta is not none %}<span class="{{ 'good' if s.delta >= 0 else 'bad' }}">{{ '%+d'|format(s.delta) }}</span>{% else %}–{% endif %}</td>
+    <td>{% if s.counts %}<span class="pill critical">{{ s.counts.critical }}</span> <span class="pill high">{{ s.counts.high }}</span>{% endif %}</td>
+    <td class="muted">{{ (s.last_run or "")[:16]|replace("T"," ") }}{% if s.error %} · <span class="bad">failed</span>{% endif %}</td></tr>{% endfor %}
+  </table>{% endif %}
+</div>
+{% endblock %}

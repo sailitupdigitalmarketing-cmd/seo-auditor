@@ -12,7 +12,24 @@ Enter any website URL and it is audited automatically every day. Each audit give
 - **Structured data:** JSON-LD missing on the homepage or invalid
 - **Performance (server side):** slow responses, very large HTML
 
-## Run with Docker
+## Setup on GitHub (recommended, no server)
+The workflow in `.github/workflows/daily-seo-audit.yml` audits every site in `sites.txt` daily at 06:00 UTC, saves the history in `reports/data/`, and publishes the reports to GitHub Pages.
+
+1. Push this code to a GitHub repository.
+2. In the repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+3. Add a website in either of these ways:
+   - Edit `sites.txt` on GitHub and add one URL per line. Saving the file starts an audit right away.
+   - Go to **Actions → Daily SEO audit → Run workflow** and enter the URL.
+4. After a few minutes the report is live at `https://<your-user>.github.io/<repo>/`.
+
+Optional:
+- **Notifications:** add a repository secret `WEBHOOK_URL` (a Slack or Discord incoming webhook) to receive the score, new/resolved issues and top action items after each audit.
+- **Crawl size:** add a repository variable `MAX_PAGES` (default 100).
+- **Different time:** change the `cron` line in the workflow.
+
+Note: GitHub Pages sites are public on free plans, so anyone with the link can see the reports.
+
+## Run with Docker (optional self-hosted web app)
 ```bash
 docker build -t seo-auditor .
 docker run -d -p 8000:8000 -v seo-data:/data --name seo-auditor seo-auditor
@@ -25,6 +42,8 @@ pip install -r requirements.txt
 uvicorn seo_auditor.app:app --port 8000
 ```
 One-off audit from the command line: `python -m seo_auditor https://example.com --max-pages 50`
+
+Static mode locally: `python -m seo_auditor.static_report add https://example.com && python -m seo_auditor.static_report run`, then open `public/index.html`.
 
 ## Settings (environment variables)
 | Variable | Default | Meaning |

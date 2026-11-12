@@ -5,11 +5,16 @@
 <div class="card">
   <div class="row">
     <div class="grow"><h1>{{ site.url }}</h1>
-      <span class="muted">Re-audited daily at {{ "%02d"|format(hour) }}:00 UTC{% if latest %} · last audit {{ latest.created_at[:16]|replace("T"," ") }} UTC{% endif %}</span></div>
+      <span class="muted">Re-audited daily at {{ "%02d"|format(hour) }}:00 UTC{% if static %} by GitHub Actions{% endif %}{% if latest %} · last audit {{ latest.created_at[:16]|replace("T"," ") }} UTC{% endif %}</span></div>
+    {% if static %}
+    {% if latest %}<a href="{{ site.slug }}-actions.csv"><button class="secondary" type="button">Export CSV</button></a>{% endif %}
+    <a href="index.html"><button class="secondary" type="button">All sites</button></a>
+    {% else %}
     {% if running %}<span class="muted">⏳ Audit running… (page refreshes)</span>
     {% else %}<form class="inline" method="post" action="/sites/{{ site.id }}/run"><button>Run now</button></form>{% endif %}
     {% if latest %}<a href="/sites/{{ site.id }}/actions.csv"><button class="secondary" type="button">Export CSV</button></a>{% endif %}
     <form class="inline" method="post" action="/sites/{{ site.id }}/delete" onsubmit="return confirm('Stop monitoring and delete history?')"><button class="secondary">Delete</button></form>
+    {% endif %}
   </div>
   {% if last_error %}<p class="err">Last audit failed: {{ last_error }}</p>{% endif %}
 </div>
