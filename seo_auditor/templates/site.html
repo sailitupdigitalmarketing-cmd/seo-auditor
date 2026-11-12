@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ site.url }} · SEO Auditor{% endblock %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block body %}
+<div class="card">
+  <div class="row">
+    <div class="grow"><h1>{{ site.url }}</h1>
+      <span class="muted">Re-audited daily at {{ "%02d"|format(hour) }}:00 UTC{% if latest %} · last audit {{ latest.created_at[:16]|replace("T"," ") }} UTC{% endif %}</span></div>
+    {% if running %}<span class="muted">⏳ Audit running… (page refreshes)</span>
+    {% else %}<form class="inline" method="post" action="/sites/{{ site.id }}/run"><button>Run now</button></form>{% endif %}
+    {% if latest %}<a href="/sites/{{ site.id }}/actions.csv"><button class="secondary" type="button">Export CSV</button></a>{% endif %}
+    <form class="inline" method="post" action="/sites/{{ site.id }}/delete" onsubmit="return confirm('Stop monitoring and delete history?')"><button class="secondary">Delete</button></form>
+  </div>
+  {% if last_error %}<p class="err">Last audit failed: {{ last_error }}</p>{% endif %}
+</div>
+
+{% if latest %}{% set r = latest.report %}{% set d = latest.diff %}
+<div class="card"><div class="row" style="align-items:flex-start;gap:24px">
+  <div><div class="muted">SEO score</div>
+    <div class="score {{ 'good' if r.score >= 80 else ('bad' if r.score < 50 else '') }}">{{ r.score }}<span class="muted" style="font-size:18px">/100</span></div>
+    {% if d and not d.first_run %}<div class="{{ 'good' if d.score_delta >= 0 else 'bad' }}">{{ '%+d'|format(d.score_delta) }} since previous audit</div>{% endif %}</div>
+  {% if spark %}<div class="grow"><div class="muted">Score trend ({{ scores|length }} audits)</div>
+    <svg viewBox="-4 -4 328 68" width="100%" height="70" preserveAspectRatio="none" role="img" aria-label="Score trend">
+      <polyline points="{{ spark }}" fill="none" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg></div>{% endif %}
+</div>
+<div class="stats" style="margin-top:14px">
+  {% for sev in ["critical","high","medium","low"] %}<div class="stat"><span class="pill {{ sev }}">{{ sev }}</span><b>{{ r.summary.issue_counts[sev] }}</b></div>{% endfor %}
+  <div class="stat"><span class="muted">Pages crawled</span><b>{{ r.summary.pages_crawled }}</b></div>
+  <div class="stat"><span class="muted">Avg response</span><b>{{ r.summary.avg_response_ms }} ms</b></div>
+</div></div>
+
+{% if d and not d.first_run and (d.new or d.resolved or d.changed) %}
+<div class="card"><h2>What changed since the previous audit</h2>
+  {% if d.new %}<p><b class="bad">New issues:</b> {{ d.new|join(", ") }}</p>{% endif %}
+  {% if d.resolved %}<p><b class="good">Resolved:</b> {{ d.resolved|join(", ") }}</p>{% endif %}
+  {% for c in d.changed %}<div class="muted">{{ c.title }}: {{ c.from }} → {{ c.to }} pages</div>{% endfor %}
+</div>{% endif %}
+
+<div class="card"><h2>Action items <span class="muted" style="font-weight:400">· highest priority first</span></h2>
+{% for sev, items in grouped.items() %}{% for i in items %}
+<details {% if sev in ["critical","high"] %}open{% endif %}>
+  <summary><span class="pill {{ sev }}">{{ sev }}</span><b class="grow">{{ i.title }}</b><span class="muted">{{ i.category }} · {{ i.count }} {{ "page" if i.count == 1 else "pages" }}</span></summary>
+  <div class="issue-body">
+    <p class="muted">{{ i.why }}</p>
+    <div class="fix"><b>How to fix:</b> {{ i.fix }}</div>
+    <table style="margin-top:8px">{% for u in i.pages[:50] %}<tr><td class="url">{{ u }}</td>
+      <td class="muted" style="font-size:13px">{% set det = i.details.get(u) %}{% if det is mapping %}HTTP {{ det.status }} · linked from {{ det.found_on|join(", ") }}{% elif det %}{{ det }}{% endif %}</td></tr>{% endfor %}
+      {% if i.count > 50 %}<tr><td class="muted">…and {{ i.count - 50 }} more (export CSV for the full list)</td></tr>{% endif %}</table>
+  </div>
+</details>
+{% endfor %}{% endfor %}
+{% if not r.issues %}<p class="good">No issues found. 🎉</p>{% endif %}
+</div>
+
+<div class="card"><h2>Pages crawled</h2><table><tr><th>URL</th><th>Status</th><th>Title</th><th>Words</th><th>ms</th></tr>
+{% for p in r.pages %}<tr><td class="url">{{ p.url }}</td><td>{{ p.status or "err" }}</td><td>{{ p.title or "" }}</td><td>{{ p.words }}</td><td>{{ p.ms }}</td></tr>{% endfor %}
+</table></div>
+{% elif not running %}<div class="card muted">No completed audit yet.</div>{% endif %}
+{% endblock %}

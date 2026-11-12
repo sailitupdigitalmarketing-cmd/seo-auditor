@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SEO Auditor{% endblock %}</title>
+{% block head %}{% endblock %}
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--muted:#667085;--line:#e4e7ec;--accent:#2f6fed;
+--critical:#c62828;--high:#e8590c;--medium:#c99a06;--low:#4f7bb8;--good:#2e7d32}
+@media (prefers-color-scheme:dark){:root{--bg:#11151c;--card:#1a2029;--fg:#e6e9ef;--muted:#98a2b3;--line:#2a3240;--accent:#6b9bff}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 20px}
+header a{color:var(--fg);text-decoration:none;font-weight:700;font-size:18px}
+main{max-width:1050px;margin:0 auto;padding:20px 16px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}
+.muted{color:var(--muted)}a{color:var(--accent)}
+input,button{font:inherit;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+button{background:var(--accent);color:#fff;border:0;cursor:pointer}button.secondary{background:transparent;color:var(--fg);border:1px solid var(--line)}
+form.inline{display:inline}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:220px}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);font-weight:600}
+.score{font-size:40px;font-weight:800;line-height:1}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase}
+.critical{background:var(--critical)}.high{background:var(--high)}.medium{background:var(--medium)}.low{background:var(--low)}
+.good{color:var(--good)}.bad{color:var(--critical)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px}.stat b{display:block;font-size:20px}
+details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--card)}
+summary{cursor:pointer;padding:12px;list-style:none;display:flex;gap:10px;align-items:center}
+summary::-webkit-details-marker{display:none}
+.issue-body{padding:0 12px 12px}.fix{background:var(--bg);border-left:3px solid var(--accent);padding:8px 12px;border-radius:6px;white-space:pre-wrap}
+.url{word-break:break-all;font-size:13px}.err{background:#fdecea;color:#8a1c1c;padding:10px;border-radius:8px}
+</style></head><body>
+<header><a href="/">🔎 SEO Auditor</a></header>
+<main>{% block body %}{% endblock %}</main></body></html>
