@@ -100,7 +100,11 @@ def audit_one(site: dict) -> None:
         (d / "latest.json").write_text(json.dumps(latest))
         (d / f"{report['created_at'][:10]}.json").write_text(json.dumps(latest))
         history.append({"created_at": now, "status": "done", "score": report["score"], "error": None})
-        print(f"✓ {site['url']}: score {report['score']} ({len(report['issues'])} issue types)")
+        sm = report["summary"]
+        print(f"✓ {site['url']}: score {report['score']}, {sm['pages_ok']}/{sm['pages_crawled']} pages OK, "
+              f"{sm['links_checked']} links checked, {len(report['issues'])} issue types")
+        for i in report["issues"]:
+            print(f"    [{i['severity']}] {i['title']} ({i['count']})")
         _notify(site, report, diff)
     except Exception as e:
         history.append({"created_at": now, "status": "failed", "score": None, "error": str(e)[:300]})
