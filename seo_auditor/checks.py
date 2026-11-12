@@ -1,6 +1,7 @@
 """SEO checks: turn crawl data into prioritized, actionable issues."""
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field, asdict
 from urllib.parse import urlparse
@@ -146,7 +147,9 @@ def run_checks(cr: CrawlResult) -> list[Issue]:
             continue
         url = p.final_url or p.url
         noindex = "noindex" in p.robots_meta
-        if noindex:
+        private_path = re.search(r"/(log-?in|sign-?in|sign-?up|register|forgot|reset|account|admin|cart|checkout|"
+                                 r"thank|auth|dashboard)", urlparse(url).path.lower())
+        if noindex and not private_path:
             s.add("noindex", "Indexability", "medium" if p.depth else "critical",
                   "Pages are set to noindex",
                   "These pages are excluded from search results. Fine for private/thank-you pages, harmful otherwise.",
@@ -159,41 +162,43 @@ def run_checks(cr: CrawlResult) -> list[Issue]:
                   "Serve pre-rendered HTML: enable server-side rendering or static pre-rendering in your framework/site "
                   "builder, or use a pre-rendering service, so the raw HTML already contains the text, headings and links.",
                   page=url, detail=f"{p.raw_word_count} words without JavaScript vs {p.word_count} with it")
-        # Title
-        if not p.title:
-            s.add("title-missing", "Meta tags", "critical", "Missing <title> tag",
-                  "The title is the headline shown in Google results and a primary ranking signal.",
-                  "Add a unique <title> of 30–60 characters with the page's main keyword near the start.", page=url)
-        else:
-            if not noindex:
-                titles[p.title.strip().lower()].append(url)
-            L = len(p.title)
-            if L > 60:
-                s.add("title-long", "Meta tags", "medium", "Title too long (>60 chars)",
-                      "Google truncates long titles, hiding your message.",
-                      "Shorten titles to ≤60 characters, keeping the key phrase first.", page=url, detail=f"{L} chars: {p.title}")
-            elif L < 30:
-                s.add("title-short", "Meta tags", "low", "Title too short (<30 chars)",
-                      "Short titles miss the chance to target descriptive keywords.",
-                      "Expand titles to 30–60 characters, e.g. '<Primary keyword> – <Benefit> | <Brand>'.", page=url,
-                      detail=f"{L} chars: {p.title}")
-        # Description
-        if not p.meta_description:
-            s.add("desc-missing", "Meta tags", "high", "Missing meta description",
-                  "Without one Google picks random page text for the snippet, often lowering click-through rate.",
-                  "Write a unique 120–160 character meta description summarising the page with a call to action.", page=url)
-        else:
-            if not noindex:
-                descs[p.meta_description.strip().lower()].append(url)
-            L = len(p.meta_description)
-            if L > 160:
-                s.add("desc-long", "Meta tags", "low", "Meta description too long (>160 chars)",
-                      "Long descriptions get truncated in search results.",
-                      "Trim to 120–160 characters.", page=url, detail=f"{L} chars")
-            elif L < 70:
-                s.add("desc-short", "Meta tags", "low", "Meta description too short (<70 chars)",
-                      "Short descriptions under-use valuable search result space.",
-                      "Expand to 120–160 characters describing the page's value.", page=url, detail=f"{L} chars")
+        # Pages kept out of search don't need title/description fixes
+        if not noindex:
+            # Title
+            if not p.title:
+                s.add("title-missing", "Meta tags", "critical", "Missing <title> tag",
+                      "The title is the headline shown in Google results and a primary ranking signal.",
+                      "Add a unique <title> of 30–60 characters with the page's main keyword near the start.", page=url)
+            else:
+                if not noindex:
+                    titles[p.title.strip().lower()].append(url)
+                L = len(p.title)
+                if L > 60:
+                    s.add("title-long", "Meta tags", "medium", "Title too long (>60 chars)",
+                          "Google truncates long titles, hiding your message.",
+                          "Shorten titles to ≤60 characters, keeping the key phrase first.", page=url, detail=f"{L} chars: {p.title}")
+                elif L < 30:
+                    s.add("title-short", "Meta tags", "low", "Title too short (<30 chars)",
+                          "Short titles miss the chance to target descriptive keywords.",
+                          "Expand titles to 30–60 characters, e.g. '<Primary keyword> – <Benefit> | <Brand>'.", page=url,
+                          detail=f"{L} chars: {p.title}")
+            # Description
+            if not p.meta_description:
+                s.add("desc-missing", "Meta tags", "high", "Missing meta description",
+                      "Without one Google picks random page text for the snippet, often lowering click-through rate.",
+                      "Write a unique 120–160 character meta description summarising the page with a call to action.", page=url)
+            else:
+                if not noindex:
+                    descs[p.meta_description.strip().lower()].append(url)
+                L = len(p.meta_description)
+                if L > 160:
+                    s.add("desc-long", "Meta tags", "low", "Meta description too long (>160 chars)",
+                          "Long descriptions get truncated in search results.",
+                          "Trim to 120–160 characters.", page=url, detail=f"{L} chars")
+                elif L < 70:
+                    s.add("desc-short", "Meta tags", "low", "Meta description too short (<70 chars)",
+                          "Short descriptions under-use valuable search result space.",
+                          "Expand to 120–160 characters describing the page's value.", page=url, detail=f"{L} chars")
         # Canonical
         if not p.canonical:
             s.add("canonical-missing", "Indexability", "medium", "Missing canonical tag",
